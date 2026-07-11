@@ -1,0 +1,6 @@
+{
+  "name": "HB Sports",
+  "description": "High fidelity live streaming app for PTV Sports and PSL games with interactive schedule, real-time score updates, and custom HLS playback.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

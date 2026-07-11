@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "270112508854",
+    "firebase_url": "https://psl-live-40aac-default-rtdb.firebaseio.com",
+    "project_id": "psl-live-40aac",
+    "storage_bucket": "psl-live-40aac.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:270112508854:android:dc5630a470a01b5d5b8f17",
+        "android_client_info": {
+          "package_name": "com.aistudio.pslofficial.vtksqr"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxA1s3VdtBIy9Gzery4O_Lhtr9_o0g0CE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
