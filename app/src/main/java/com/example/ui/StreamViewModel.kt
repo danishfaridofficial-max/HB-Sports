@@ -957,7 +957,14 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
     private val _updateStatusMessage = MutableStateFlow<String?>(null)
     val updateStatusMessage: StateFlow<String?> = _updateStatusMessage.asStateFlow()
 
-    fun checkForUpdates() {
+    private val _manualUpdateMessage = MutableStateFlow<String?>(null)
+    val manualUpdateMessage: StateFlow<String?> = _manualUpdateMessage.asStateFlow()
+
+    fun clearManualUpdateMessage() {
+        _manualUpdateMessage.value = null
+    }
+
+    fun checkForUpdates(isManual: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             val url = "https://raw.githubusercontent.com/danishfaridofficial-max/HB-Sports/main/version.json"
             try {
@@ -981,12 +988,27 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
                                     downloadUrl = remoteDownloadUrl,
                                     changeLog = remoteChangeLog
                                 )
+                            } else {
+                                if (isManual) {
+                                    _manualUpdateMessage.value = "Your app is already up to date!"
+                                }
                             }
+                        } else {
+                            if (isManual) {
+                                _manualUpdateMessage.value = "Failed to parse update information."
+                            }
+                        }
+                    } else {
+                        if (isManual) {
+                            _manualUpdateMessage.value = "Could not check for updates (Server error)."
                         }
                     }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                if (isManual) {
+                    _manualUpdateMessage.value = "Could not check for updates: ${e.localizedMessage}"
+                }
             }
         }
     }

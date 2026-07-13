@@ -146,8 +146,16 @@ fun DashboardScreen(
     val appUpdate by viewModel.appUpdate.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
     val updateStatusMessage by viewModel.updateStatusMessage.collectAsState()
+    val manualUpdateMessage by viewModel.manualUpdateMessage.collectAsState()
 
     val context = LocalContext.current
+
+    androidx.compose.runtime.LaunchedEffect(manualUpdateMessage) {
+        manualUpdateMessage?.let { msg ->
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+            viewModel.clearManualUpdateMessage()
+        }
+    }
     androidx.compose.runtime.DisposableEffect(Unit) {
         val activity = context as? android.app.Activity
         activity?.window?.let { window ->
@@ -318,7 +326,7 @@ fun DashboardScreen(
                         .clip(RoundedCornerShape(8.dp))
                         .clickable {
                             scope.launch { drawerState.close() }
-                            viewModel.checkForUpdates()
+                            viewModel.checkForUpdates(isManual = true)
                             android.widget.Toast.makeText(context, "Checking for updates...", android.widget.Toast.LENGTH_SHORT).show()
                         }
                         .padding(horizontal = 16.dp, vertical = 12.dp),
