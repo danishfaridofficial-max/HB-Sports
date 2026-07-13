@@ -32,6 +32,8 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
@@ -76,6 +78,12 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
+import kotlinx.coroutines.Job
 
 @Composable
 fun FullscreenIcon(modifier: Modifier = Modifier, tint: Color = Color.White) {
@@ -362,6 +370,37 @@ fun PipIcon(modifier: Modifier = Modifier, tint: Color = Color.White) {
             size = androidx.compose.ui.geometry.Size(w * 0.5f, h * 0.5f),
             cornerRadius = androidx.compose.ui.geometry.CornerRadius(1.dp.toPx(), 1.dp.toPx())
         )
+    }
+}
+
+@Composable
+fun SunIcon(modifier: Modifier = Modifier, color: Color = Color.White) {
+    androidx.compose.foundation.Canvas(modifier = modifier) {
+        val width = size.width
+        val height = size.height
+        val center = androidx.compose.ui.geometry.Offset(width / 2f, height / 2f)
+        val radius = height * 0.25f
+        
+        // Center circle
+        drawCircle(color = color, radius = radius)
+        
+        // Draw rays
+        val strokeWidth = 2.dp.toPx()
+        val rayLen = height * 0.15f
+        val innerDist = radius + 3.dp.toPx()
+        val outerDist = innerDist + rayLen
+        
+        for (i in 0 until 8) {
+            val angle = i * Math.PI / 4
+            val cos = Math.cos(angle).toFloat()
+            val sin = Math.sin(angle).toFloat()
+            drawLine(
+                color = color,
+                start = androidx.compose.ui.geometry.Offset(center.x + innerDist * cos, center.y + innerDist * sin),
+                end = androidx.compose.ui.geometry.Offset(center.x + outerDist * cos, center.y + outerDist * sin),
+                strokeWidth = strokeWidth
+            )
+        }
     }
 }
 
@@ -789,6 +828,22 @@ fun VideoPlayer(
 
         val playerResizeMode = resizeMode
 
+        // Brightness & Volume control variables
+        val audioManager = remember(context) {
+            context.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+        }
+        val maxVolume = remember(audioManager) {
+            audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+        }
+        var startBrightness by remember { mutableStateOf(0.5f) }
+        var startVolume by remember { mutableStateOf(0f) }
+        var playerSize by remember { mutableStateOf(IntSize.Zero) }
+        var gestureType by remember { mutableStateOf("") } // "brightness" or "volume"
+        
+        var showGestureOverlay by remember { mutableStateOf(false) }
+        var overlayValue by remember { mutableStateOf(0) }
+        var overlayIcon by remember { mutableStateOf("") }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -818,15 +873,80 @@ fun VideoPlayer(
                 return@Box
             }
 
-            // Transparent overlay Box to capture click events cleanly and toggle controls
+            // Transparent overlay Box that captures click events AND left/right drag-based adjustments
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        controlsVisible = !controlsVisible
+                    .onSizeChanged { playerSize = it }
+                    .pointerInput(isLocked) {
+                        if (isLocked) return@pointerInput
+                        detectTapGestures(
+                            onTap = {
+                                controlsVisible = !controlsVisible
+                            }
+                        )
+                    }
+                    .pointerInput(isLocked) {
+                        if (isLocked) return@pointerInput
+                        detectVerticalDragGestures(
+                            onDragStart = { pointerInputChange ->
+                                val startX = pointerInputChange.x
+                                val isLeft = startX < (playerSize.width / 2f)
+                                if (isLeft) {
+                                    gestureType = "brightness"
+                                    val activity = context as? Activity
+                                    val currentBrightness = activity?.window?.attributes?.screenBrightness ?: -1f
+                                    startBrightness = if (currentBrightness < 0f) 0.5f else currentBrightness
+                                } else {
+                                    gestureType = "volume"
+                                    val currentVol = audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
+                                    startVolume = currentVol.toFloat()
+                                }
+                                showGestureOverlay = true
+                            },
+                            onDragEnd = {
+                                gestureType = ""
+                                coroutineScope.launch {
+                                    delay(1000)
+                                    showGestureOverlay = false
+                                }
+                            },
+                            onDragCancel = {
+                                gestureType = ""
+                                showGestureOverlay = false
+                            },
+                            onVerticalDrag = { change, dragAmount ->
+                                val totalHeight = playerSize.height.toFloat()
+                                if (totalHeight > 0f) {
+                                    val deltaFraction = -dragAmount / totalHeight
+                                    if (gestureType == "brightness") {
+                                        val newBrightness = (startBrightness + deltaFraction * 1.5f).coerceIn(0.01f, 1.0f)
+                                        startBrightness = newBrightness
+                                        
+                                        val activity = context as? Activity
+                                        val layoutParams = activity?.window?.attributes
+                                        if (layoutParams != null) {
+                                            layoutParams.screenBrightness = newBrightness
+                                            activity.window.attributes = layoutParams
+                                        }
+                                        overlayIcon = "brightness"
+                                        overlayValue = (newBrightness * 100).toInt()
+                                    } else if (gestureType == "volume") {
+                                        val volumeDelta = deltaFraction * maxVolume * 1.5f
+                                        val newVolume = (startVolume + volumeDelta).coerceIn(0f, maxVolume.toFloat())
+                                        startVolume = newVolume
+                                        
+                                        audioManager.setStreamVolume(
+                                            android.media.AudioManager.STREAM_MUSIC,
+                                            newVolume.toInt(),
+                                            0
+                                        )
+                                        overlayIcon = "volume"
+                                        overlayValue = ((newVolume / maxVolume) * 100).toInt()
+                                    }
+                                }
+                            }
+                        )
                     }
             )
 
@@ -1142,6 +1262,55 @@ fun VideoPlayer(
                         }
                     }
                 }
+
+            // Custom Gesture Overlay HUD
+            AnimatedVisibility(
+                visible = showGestureOverlay,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier.align(Alignment.Center)
+            ) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.75f)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
+                    ) {
+                        if (overlayIcon == "brightness") {
+                            SunIcon(
+                                color = Color(0xFFFBBF24), // Bright golden yellow
+                                modifier = Modifier.size(36.dp)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "Brightness $overlayValue%",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        } else {
+                            VolumeIcon(
+                                isMuted = (overlayValue == 0),
+                                tint = Color(0xFF3B82F6), // Professional sky blue
+                                modifier = Modifier.size(36.dp)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "Volume $overlayValue%",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+            }
 
             // Buffering Overlay
             if (isBuffering && !hasError) {

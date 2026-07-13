@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface StreamDao {
-    @Query("SELECT * FROM streams ORDER BY isCustom ASC, timestamp DESC")
+    @Query("SELECT * FROM streams ORDER BY isCustom ASC, channelNumber ASC, id ASC")
     fun getAllStreams(): Flow<List<StreamItem>>
 
     @Query("SELECT * FROM streams WHERE isCustom = 1 ORDER BY timestamp DESC")

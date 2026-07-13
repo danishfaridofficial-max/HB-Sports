@@ -55,7 +55,14 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.geometry.Offset
+import kotlin.math.roundToInt
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -302,6 +309,18 @@ fun DashboardScreen(
                     viewersCount = activeUsersCount,
                     onMenuClick = {
                         scope.launch { drawerState.open() }
+                    },
+                    onShareClick = {
+                        val sendIntent = android.content.Intent().apply {
+                            action = android.content.Intent.ACTION_SEND
+                            putExtra(
+                                android.content.Intent.EXTRA_TEXT,
+                                "HB Sports Live Streaming app install karein aur live sports, cricket matches free me dekhain!\nApp Link: https://play.google.com/store/apps/details?id=${context.packageName}"
+                            )
+                            type = "text/plain"
+                        }
+                        val shareIntent = android.content.Intent.createChooser(sendIntent, "Share App Via")
+                        context.startActivity(shareIntent)
                     }
                 )
             }
@@ -353,14 +372,23 @@ fun DashboardScreen(
                         .background(DarkBlueBackground)
                 ) {
                     when (activeTab) {
-                        0 -> StreamsTabContent(
-                            streams = streams,
-                            selectedStream = selectedStream,
-                            viewersCount = activeUsersCount,
-                            onStreamSelect = { viewModel.selectStream(it) },
-                            onStreamDelete = { viewModel.deleteStream(it) },
-                            onAddClick = { showAddStreamDialog = true }
-                        )
+                        0 -> {
+                            val syncStatus by viewModel.syncStatus.collectAsState()
+                            val isRefreshing = syncStatus is StreamViewModel.SyncStatus.Loading
+                            PullToRefreshContainer(
+                                isRefreshing = isRefreshing,
+                                onRefresh = { viewModel.syncFromSpreadsheet(viewModel.spreadsheetId.value) }
+                            ) {
+                                StreamsTabContent(
+                                    streams = streams,
+                                    selectedStream = selectedStream,
+                                    viewersCount = activeUsersCount,
+                                    onStreamSelect = { viewModel.selectStream(it) },
+                                    onStreamDelete = { viewModel.deleteStream(it) },
+                                    onAddClick = { showAddStreamDialog = true }
+                                )
+                            }
+                        }
                         1 -> SettingsContent(viewModel = viewModel)
                     }
                 }
@@ -414,7 +442,7 @@ fun DashboardScreen(
 }
 
 @Composable
-fun DashboardHeader(viewersCount: String, onMenuClick: () -> Unit) {
+fun DashboardHeader(viewersCount: String, onMenuClick: () -> Unit, onShareClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -478,8 +506,18 @@ fun DashboardHeader(viewersCount: String, onMenuClick: () -> Unit) {
                 )
             }
 
-            // Right balancing spacer to ensure the title logo is perfectly centered
-            Spacer(modifier = Modifier.size(48.dp))
+            // Right Share App button
+            IconButton(
+                onClick = onShareClick,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Share,
+                    contentDescription = "Share App",
+                    tint = White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
     }
 }
@@ -1861,6 +1899,109 @@ fun SettingsContent(
                         color = LightGray,
                         fontSize = 11.sp,
                         lineHeight = 14.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PullToRefreshContainer(
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    var offsetY by remember { mutableStateOf(0f) }
+    val threshold = 180f // trigger refresh threshold in px
+    val animatedOffsetY by animateFloatAsState(
+        targetValue = if (isRefreshing) 100f else offsetY
+    )
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                // If user is scrolling up and we have pulled down offset, consume it first
+                return if (available.y < 0f && offsetY > 0f) {
+                    val prevOffset = offsetY
+                    offsetY = (offsetY + available.y).coerceAtLeast(0f)
+                    Offset(0f, offsetY - prevOffset)
+                } else {
+                    Offset.Zero
+                }
+            }
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                // If child has left over pull-down scrolling (meaning we are at the top)
+                return if (available.y > 0f) {
+                    val prevOffset = offsetY
+                    offsetY = (offsetY + available.y * 0.5f) // resistance
+                    Offset(0f, offsetY - prevOffset)
+                } else {
+                    Offset.Zero
+                }
+            }
+
+            override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                if (offsetY >= threshold && !isRefreshing) {
+                    onRefresh()
+                }
+                offsetY = 0f
+                return super.onPreFling(available)
+            }
+            
+            override suspend fun onPostFling(
+                consumed: androidx.compose.ui.unit.Velocity,
+                available: androidx.compose.ui.unit.Velocity
+            ): androidx.compose.ui.unit.Velocity {
+                offsetY = 0f
+                return super.onPostFling(consumed, available)
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .nestedScroll(nestedScrollConnection)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .offset { androidx.compose.ui.unit.IntOffset(0, animatedOffsetY.roundToInt()) }
+        ) {
+            content()
+        }
+
+        if (offsetY > 15f || isRefreshing) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 12.dp)
+                    .shadow(elevation = 6.dp, shape = CircleShape)
+                    .background(Color(0xFF1E293B), shape = CircleShape)
+                    .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
+                    .size(42.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isRefreshing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        color = PrimaryRed,
+                        strokeWidth = 2.5.dp
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Pull down to refresh",
+                        tint = PrimaryRed,
+                        modifier = Modifier
+                            .size(22.dp)
                     )
                 }
             }

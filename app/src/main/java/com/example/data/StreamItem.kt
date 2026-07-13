@@ -10,5 +10,6 @@ data class StreamItem(
     val url: String,
     val imageUrl: String? = null,
     val isCustom: Boolean = false,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val channelNumber: Int = 999
 )

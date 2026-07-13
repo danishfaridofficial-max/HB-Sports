@@ -148,6 +148,14 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
                 // Parse columns dynamically
                 val headers = parseCsvLine(lines.first()).map { it.lowercase().trim() }
                 
+                // 0. Channel Number Index
+                var channelNumberIndex = headers.indexOf("channle number")
+                if (channelNumberIndex == -1) channelNumberIndex = headers.indexOf("channel number")
+                if (channelNumberIndex == -1) channelNumberIndex = headers.indexOf("number")
+                if (channelNumberIndex == -1) channelNumberIndex = headers.indexOf("channel_number")
+                if (channelNumberIndex == -1) channelNumberIndex = headers.indexOf("channle_number")
+                if (channelNumberIndex == -1) channelNumberIndex = headers.indexOf("no")
+
                 // 1. Channel Name / Title Index
                 var titleIndex = headers.indexOf("channle name")
                 if (titleIndex == -1) titleIndex = headers.indexOf("channel name")
@@ -194,6 +202,12 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
                     val url = if (urlIndex != -1 && urlIndex < row.size) row[urlIndex].trim() else ""
                     val imageUrl = if (imageUrlIndex != -1 && imageUrlIndex < row.size) row[imageUrlIndex].trim().ifBlank { null } else null
 
+                    val chanNum = if (channelNumberIndex != -1 && channelNumberIndex < row.size) {
+                        row[channelNumberIndex].trim().toIntOrNull() ?: i
+                    } else {
+                        i
+                    }
+
                     // If a specific scrolling text column is present, find first non-blank entry in any row
                     if (scrollingTextIndex != -1 && scrollingTextIndex < row.size) {
                         val rowScrollText = row[scrollingTextIndex].trim()
@@ -221,7 +235,8 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
                                     title = title,
                                     url = url,
                                     imageUrl = imageUrl,
-                                    isCustom = false
+                                    isCustom = false,
+                                    channelNumber = chanNum
                                 )
                             )
                         }
@@ -268,25 +283,29 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
             title = "ARY News",
             url = "https://cdn07lhr.tamashaweb.com:8087/jazzauth/vsat-arynews-abr/playlist.m3u8",
             imageUrl = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR6A7T-7pXv3DshsXwreS_H1hZ84wOq0Y2pMw&s",
-            isCustom = false
+            isCustom = false,
+            channelNumber = 1
         ),
         StreamItem(
             title = "PTV Sports",
             url = "https://tencentcdn5.tamashaweb.com/v1/0196159eeff41eb4611d121c76c781/0196159f51bb1ea5064913eb2a83ea/TMSHU1WEB_480p.m3u8",
             imageUrl = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQPGt69V61QADwmeZkfwsQWKnG3cRrydDc4DrfBDNP6OQ&s=10",
-            isCustom = false
+            isCustom = false,
+            channelNumber = 2
         ),
         StreamItem(
             title = "Ten Sports",
             url = "https://tencentcdn5.tamashaweb.com/v1/0196159eeff41eb4611d121c76c781/0196159f51bb1ea5064913eb2a83ea/TMSHU1WEB_360p.m3u8",
             imageUrl = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSb9pUj3IatF3vDpxoZ7fB4bOfUv7GfSGeU0A&s",
-            isCustom = false
+            isCustom = false,
+            channelNumber = 3
         ),
         StreamItem(
             title = "Geo Super",
             url = "https://cdn23lhr.tamashaweb.com:8087/jazzauth/189H/playlist.m3u8?",
             imageUrl = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS_mUuTj2u7yF59pL4vSg_1X7fSGeU0A&s",
-            isCustom = false
+            isCustom = false,
+            channelNumber = 4
         )
     )
 
