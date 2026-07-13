@@ -88,6 +88,7 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -161,6 +162,11 @@ fun DashboardScreen(
     var showAddStreamDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showContactDialog by remember { mutableStateOf(false) }
+    var showExitDialog by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = true) {
+        showExitDialog = true
+    }
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -466,6 +472,36 @@ fun DashboardScreen(
             confirmButton = {
                 TextButton(onClick = { showContactDialog = false }) {
                     Text("Close", color = AccentRed, fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = CardDark,
+            titleContentColor = White,
+            textContentColor = LightGray
+        )
+    }
+
+    if (showExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            title = { Text(text = "Exit App?", fontWeight = FontWeight.Bold, color = White) },
+            text = { Text(text = "Are you sure you want to exit HB Sports?", color = LightGray) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showExitDialog = false
+                        val activity = context as? android.app.Activity
+                        activity?.finishAffinity()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentRed)
+                ) {
+                    Text("Yes", color = White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showExitDialog = false }
+                ) {
+                    Text("No", color = LightGray)
                 }
             },
             containerColor = CardDark,
