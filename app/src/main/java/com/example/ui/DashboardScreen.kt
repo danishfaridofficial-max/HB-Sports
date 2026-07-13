@@ -79,6 +79,7 @@ import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.rememberDrawerState
@@ -140,6 +141,10 @@ fun DashboardScreen(
     val selectedLiveMatch by viewModel.selectedLiveMatch.collectAsState()
     val upcomingMatches by viewModel.upcomingMatches.collectAsState()
     val activeUsersCount by viewModel.activeUsersCount.collectAsState()
+
+    val appUpdate by viewModel.appUpdate.collectAsState()
+    val downloadProgress by viewModel.downloadProgress.collectAsState()
+    val updateStatusMessage by viewModel.updateStatusMessage.collectAsState()
 
     val context = LocalContext.current
     androidx.compose.runtime.DisposableEffect(Unit) {
@@ -298,6 +303,35 @@ fun DashboardScreen(
                         fontWeight = FontWeight.Normal
                     )
                 }
+
+                // Drawer Items: Check for Updates
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            scope.launch { drawerState.close() }
+                            viewModel.checkForUpdates()
+                            android.widget.Toast.makeText(context, "Checking for updates...", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Check for Updates",
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = "Check for Updates",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Normal
+                    )
+                }
             }
         }
     ) {
@@ -315,7 +349,7 @@ fun DashboardScreen(
                             action = android.content.Intent.ACTION_SEND
                             putExtra(
                                 android.content.Intent.EXTRA_TEXT,
-                                "HB Sports Live Streaming app install karein aur live sports, cricket matches free me dekhain!\nApp Link: https://play.google.com/store/apps/details?id=${context.packageName}"
+                                "HB Sports Live Streaming app install karein aur live sports, cricket matches free me dekhain!\nApp Link: https://github.com/danishfaridofficial-max/HB-Sports/releases/latest/download/app-debug.apk"
                             )
                             type = "text/plain"
                         }
@@ -432,6 +466,106 @@ fun DashboardScreen(
             confirmButton = {
                 TextButton(onClick = { showContactDialog = false }) {
                     Text("Close", color = AccentRed, fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = CardDark,
+            titleContentColor = White,
+            textContentColor = LightGray
+        )
+    }
+
+    if (appUpdate != null) {
+        AlertDialog(
+            onDismissRequest = { /* Disable click-outside dismiss to keep dialog showing during critical update operations */ },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Update Available",
+                        tint = AccentRed,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "New Update Available!",
+                        fontWeight = FontWeight.Bold,
+                        color = White,
+                        fontSize = 20.sp
+                    )
+                }
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Version: ${appUpdate?.versionName}",
+                        color = White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "What's New:",
+                        color = White.copy(alpha = 0.8f),
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = appUpdate?.changeLog ?: "No changelog provided.",
+                        color = LightGray,
+                        fontSize = 13.sp
+                    )
+                    
+                    if (downloadProgress != null || updateStatusMessage != null) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            val progress = downloadProgress ?: 0f
+                            val statusText = updateStatusMessage ?: "Downloading..."
+                            
+                            LinearProgressIndicator(
+                                progress = progress,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp)),
+                                color = AccentRed,
+                                trackColor = Color.White.copy(alpha = 0.15f)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "$statusText (${(progress * 100).toInt()}%)",
+                                color = LightGray,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                if (downloadProgress == null) {
+                    Button(
+                        onClick = {
+                            appUpdate?.let {
+                                viewModel.downloadAndInstallApk(context, it.downloadUrl)
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentRed)
+                    ) {
+                        Text("Update Now", color = White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            dismissButton = {
+                if (downloadProgress == null) {
+                    TextButton(
+                        onClick = { viewModel.dismissUpdate() }
+                    ) {
+                        Text("Later", color = LightGray)
+                    }
                 }
             },
             containerColor = CardDark,

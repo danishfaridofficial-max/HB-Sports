@@ -354,6 +354,7 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
         initializeUpcomingMatches()
         startLiveMatchSimulation()
         fetchRealCricketMatches()
+        checkForUpdates()
 
         // Start real-time active users count simulation that responds to stream choices
         viewModelScope.launch {
@@ -938,6 +939,130 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    data class AppUpdate(
+        val versionCode: Int,
+        val versionName: String,
+        val downloadUrl: String,
+        val changeLog: String
+    )
+
+    private val _appUpdate = MutableStateFlow<AppUpdate?>(null)
+    val appUpdate: StateFlow<AppUpdate?> = _appUpdate.asStateFlow()
+
+    private val _downloadProgress = MutableStateFlow<Float?>(null)
+    val downloadProgress: StateFlow<Float?> = _downloadProgress.asStateFlow()
+
+    private val _updateStatusMessage = MutableStateFlow<String?>(null)
+    val updateStatusMessage: StateFlow<String?> = _updateStatusMessage.asStateFlow()
+
+    fun checkForUpdates() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val url = "https://raw.githubusercontent.com/danishfaridofficial-max/HB-Sports/main/version.json"
+            try {
+                val client = OkHttpClient()
+                val request = Request.Builder().url(url).build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val body = response.body?.string()
+                        if (!body.isNullOrBlank()) {
+                            val json = JSONObject(body)
+                            val remoteVersionCode = json.optInt("versionCode", 1)
+                            val remoteVersionName = json.optString("versionName", "1.0")
+                            val remoteDownloadUrl = json.optString("downloadUrl", "")
+                            val remoteChangeLog = json.optString("changeLog", "")
+                            
+                            val localVersionCode = BuildConfig.VERSION_CODE
+                            if (remoteVersionCode > localVersionCode) {
+                                _appUpdate.value = AppUpdate(
+                                    versionCode = remoteVersionCode,
+                                    versionName = remoteVersionName,
+                                    downloadUrl = remoteDownloadUrl,
+                                    changeLog = remoteChangeLog
+                                )
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun downloadAndInstallApk(context: Context, downloadUrl: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _downloadProgress.value = 0f
+            _updateStatusMessage.value = "Downloading..."
+            try {
+                val client = OkHttpClient()
+                val request = Request.Builder().url(downloadUrl).build()
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        _downloadProgress.value = null
+                        _updateStatusMessage.value = "Download failed (Server Error)"
+                        return@launch
+                    }
+                    val body = response.body
+                    if (body == null) {
+                        _downloadProgress.value = null
+                        _updateStatusMessage.value = "Download failed (Empty Response)"
+                        return@launch
+                    }
+                    
+                    val contentLength = body.contentLength()
+                    val apkFile = java.io.File(context.cacheDir, "HB-Sports-Update.apk")
+                    if (apkFile.exists()) {
+                        apkFile.delete()
+                    }
+                    
+                    body.byteStream().use { inputStream ->
+                        apkFile.outputStream().use { outputStream ->
+                            val buffer = ByteArray(8192)
+                            var bytesRead: Int
+                            var totalBytesRead = 0L
+                            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                                outputStream.write(buffer, 0, bytesRead)
+                                totalBytesRead += bytesRead
+                                if (contentLength > 0) {
+                                    _downloadProgress.value = totalBytesRead.toFloat() / contentLength.toFloat()
+                                }
+                            }
+                        }
+                    }
+                    
+                    _downloadProgress.value = 1.0f
+                    _updateStatusMessage.value = "Installing update..."
+                    installApk(context, apkFile)
+                    _downloadProgress.value = null
+                    _updateStatusMessage.value = null
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _downloadProgress.value = null
+                _updateStatusMessage.value = "Download failed: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    private fun installApk(context: Context, file: java.io.File) {
+        try {
+            val authority = "${context.packageName}.fileprovider"
+            val apkUri = androidx.core.content.FileProvider.getUriForFile(context, authority, file)
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                setDataAndType(apkUri, "application/vnd.android.package-archive")
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun dismissUpdate() {
+        _appUpdate.value = null
     }
 
     override fun onCleared() {

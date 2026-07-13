@@ -835,7 +835,8 @@ fun VideoPlayer(
         val maxVolume = remember(audioManager) {
             audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
         }
-        var startBrightness by remember { mutableStateOf(0.5f) }
+        var playerBrightness by remember { mutableStateOf(1.0f) }
+        var startBrightness by remember { mutableStateOf(1.0f) }
         var startVolume by remember { mutableStateOf(0f) }
         var playerSize by remember { mutableStateOf(IntSize.Zero) }
         var gestureType by remember { mutableStateOf("") } // "brightness" or "volume"
@@ -866,6 +867,13 @@ fun VideoPlayer(
                         playerView.keepScreenOn = true
                     }
                 )
+
+                // Dimming overlay that simulates player-only brightness (does not affect system brightness)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = (1.0f - playerBrightness).coerceIn(0f, 0.95f)))
+                )
             }
 
             // In PiP mode, hide all custom overlays completely
@@ -894,9 +902,7 @@ fun VideoPlayer(
                                 val isLeft = startX < (playerSize.width / 2f)
                                 if (isLeft) {
                                     gestureType = "brightness"
-                                    val activity = context as? Activity
-                                    val currentBrightness = activity?.window?.attributes?.screenBrightness ?: -1f
-                                    startBrightness = if (currentBrightness < 0f) 0.5f else currentBrightness
+                                    startBrightness = playerBrightness
                                 } else {
                                     gestureType = "volume"
                                     val currentVol = audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
@@ -920,15 +926,9 @@ fun VideoPlayer(
                                 if (totalHeight > 0f) {
                                     val deltaFraction = -dragAmount / totalHeight
                                     if (gestureType == "brightness") {
-                                        val newBrightness = (startBrightness + deltaFraction * 1.5f).coerceIn(0.01f, 1.0f)
+                                        val newBrightness = (startBrightness + deltaFraction * 1.5f).coerceIn(0.05f, 1.0f)
                                         startBrightness = newBrightness
-                                        
-                                        val activity = context as? Activity
-                                        val layoutParams = activity?.window?.attributes
-                                        if (layoutParams != null) {
-                                            layoutParams.screenBrightness = newBrightness
-                                            activity.window.attributes = layoutParams
-                                        }
+                                        playerBrightness = newBrightness
                                         overlayIcon = "brightness"
                                         overlayValue = (newBrightness * 100).toInt()
                                     } else if (gestureType == "volume") {
