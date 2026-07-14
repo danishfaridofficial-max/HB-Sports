@@ -1025,6 +1025,8 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun downloadAndInstallApk(context: Context, downloadUrl: String) {
+        // Clear selectedStream to stop ExoPlayer completely and save network bandwidth
+        _selectedStream.value = null
         viewModelScope.launch(Dispatchers.IO) {
             _downloadProgress.value = 0f
             _updateStatusMessage.value = "Downloading..."

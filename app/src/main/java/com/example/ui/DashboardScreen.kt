@@ -388,26 +388,53 @@ fun DashboardScreen(
                     .padding(innerPadding)
             ) {
                 // Persistent Video Player section at top
-                selectedStream?.let { stream ->
+                if (selectedStream != null && updateStatusMessage == null) {
                     VideoPlayerSection(
-                        stream = stream,
+                        stream = selectedStream!!,
                         viewersCount = activeUsersCount,
                         modifier = Modifier
                             .fillMaxWidth()
                             .aspectRatio(1.55f)
                     )
-                } ?: Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1.55f)
-                        .background(Color.Black),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Loading Live Stream...",
-                        color = White,
-                        fontWeight = FontWeight.Bold
-                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1.55f)
+                            .background(Color.Black),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                        ) {
+                            if (updateStatusMessage != null) {
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    color = Color(0xFFFFF000), // Neon yellow progress indicator
+                                    modifier = Modifier.size(36.dp)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Updating App: $updateStatusMessage",
+                                    color = White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
+                                Text(
+                                    text = "Stream paused to download update faster.",
+                                    color = LightGray,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            } else {
+                                Text(
+                                    text = "Loading Live Stream...",
+                                    color = White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                 }
 
                 val marqueeText by viewModel.marqueeText.collectAsState()
@@ -644,7 +671,7 @@ fun DashboardScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = "Thanks for choosing Babar Ali Official! ♥",
+                        text = "Thanks for choosing HB Sports! ♥",
                         color = Color(0xFFEF4444),
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
