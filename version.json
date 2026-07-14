@@ -1,6 +1,6 @@
 {
-  "versionCode": 2,
-  "versionName": "2.0",
+  "versionCode": 1,
+  "versionName": "1.0",
   "downloadUrl": "https://github.com/danishfaridofficial-max/HB-Sports/releases/latest/download/app-debug.apk",
   "changeLog": "Bug fixes, share button, and custom player gesture control."
 }
