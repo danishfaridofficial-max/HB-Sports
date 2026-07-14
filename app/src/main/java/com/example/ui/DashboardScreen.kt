@@ -102,6 +102,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -147,6 +148,7 @@ fun DashboardScreen(
     val downloadProgress by viewModel.downloadProgress.collectAsState()
     val updateStatusMessage by viewModel.updateStatusMessage.collectAsState()
     val manualUpdateMessage by viewModel.manualUpdateMessage.collectAsState()
+    val showUpdateSuccess by viewModel.showUpdateSuccess.collectAsState()
 
     val context = LocalContext.current
 
@@ -171,6 +173,12 @@ fun DashboardScreen(
     var showAboutDialog by remember { mutableStateOf(false) }
     var showContactDialog by remember { mutableStateOf(false) }
     var showExitDialog by remember { mutableStateOf(false) }
+    var showSplash by remember { mutableStateOf(true) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(2500)
+        showSplash = false
+    }
 
     BackHandler(enabled = true) {
         showExitDialog = true
@@ -179,9 +187,10 @@ fun DashboardScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
+    Box(modifier = Modifier.fillMaxSize()) {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
             ModalDrawerSheet(
                 drawerContainerColor = Color(0xFF0F172A), // Professional Deep Slate Blue
                 drawerContentColor = Color.White,
@@ -406,38 +415,27 @@ fun DashboardScreen(
                 // HTML Notice/Message Marquee Bar
                 MarqueeBanner(text = marqueeText)
 
-                // Navigation Tabs below the player
-                SportsTabRow(
-                    selectedTabIndex = activeTab,
-                    onTabSelected = { activeTab = it }
-                )
-
-                // Content Area depending on Tab selection
+                // Content Area with Streams directly (Settings hidden for public release)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
                         .background(DarkBlueBackground)
                 ) {
-                    when (activeTab) {
-                        0 -> {
-                            val syncStatus by viewModel.syncStatus.collectAsState()
-                            val isRefreshing = syncStatus is StreamViewModel.SyncStatus.Loading
-                            PullToRefreshContainer(
-                                isRefreshing = isRefreshing,
-                                onRefresh = { viewModel.syncFromSpreadsheet(viewModel.spreadsheetId.value) }
-                            ) {
-                                StreamsTabContent(
-                                    streams = streams,
-                                    selectedStream = selectedStream,
-                                    viewersCount = activeUsersCount,
-                                    onStreamSelect = { viewModel.selectStream(it) },
-                                    onStreamDelete = { viewModel.deleteStream(it) },
-                                    onAddClick = { showAddStreamDialog = true }
-                                )
-                            }
-                        }
-                        1 -> SettingsContent(viewModel = viewModel)
+                    val syncStatus by viewModel.syncStatus.collectAsState()
+                    val isRefreshing = syncStatus is StreamViewModel.SyncStatus.Loading
+                    PullToRefreshContainer(
+                        isRefreshing = isRefreshing,
+                        onRefresh = { viewModel.syncFromSpreadsheet(viewModel.spreadsheetId.value) }
+                    ) {
+                        StreamsTabContent(
+                            streams = streams,
+                            selectedStream = selectedStream,
+                            viewersCount = activeUsersCount,
+                            onStreamSelect = { viewModel.selectStream(it) },
+                            onStreamDelete = { viewModel.deleteStream(it) },
+                            onAddClick = { showAddStreamDialog = true }
+                        )
                     }
                 }
             }
@@ -454,6 +452,15 @@ fun DashboardScreen(
             }
         }
     }
+
+    AnimatedVisibility(
+        visible = showSplash,
+        enter = fadeIn(),
+        exit = fadeOut(animationSpec = tween(durationMillis = 600))
+    ) {
+        SplashScreenContent()
+    }
+}
 
     // Modern styled, high contrast dialogs
     if (showAboutDialog) {
@@ -475,8 +482,64 @@ fun DashboardScreen(
     if (showContactDialog) {
         AlertDialog(
             onDismissRequest = { showContactDialog = false },
-            title = { Text(text = "Contact Us", fontWeight = FontWeight.Bold, color = White) },
-            text = { Text(text = "We would love to hear from you! For support, inquiries, or feedback, feel free to reach out to us at:\n\n📧 support@hbsports.com\n📞 +1 (800) 123-4567\n\nOur team is available 24/7 to assist you.", color = LightGray) },
+            title = { 
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Email,
+                        contentDescription = "Contact",
+                        tint = AccentRed,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Contact Us", fontWeight = FontWeight.Bold, color = White)
+                }
+            },
+            text = { 
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(
+                        text = "For support, stream inquiries, feedback, or any questions, feel free to reach out to us directly. We are here to help!",
+                        color = LightGray,
+                        fontSize = 14.sp
+                    )
+                    
+                    // Email Section
+                    Column {
+                        Text(text = "EMAIL ADDRESS", color = AccentRed, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = "📧  babarmobiles1@gmail.com", color = White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    }
+
+                    // WhatsApp Section
+                    Column {
+                        Text(text = "WHATSAPP SUPPORT", color = AccentRed, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = "💬  +92 334 8861990", color = White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Live WhatsApp Contact Button
+                    Button(
+                        onClick = {
+                            try {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                    data = android.net.Uri.parse("https://wa.me/923348861990")
+                                }
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                android.widget.Toast.makeText(context, "Could not open WhatsApp. Please save +923348861990 manually.", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)), // WhatsApp Green
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(text = "Message on WhatsApp", color = White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
+                }
+            },
             confirmButton = {
                 TextButton(onClick = { showContactDialog = false }) {
                     Text("Close", color = AccentRed, fontWeight = FontWeight.Bold)
@@ -510,6 +573,95 @@ fun DashboardScreen(
                     onClick = { showExitDialog = false }
                 ) {
                     Text("No", color = LightGray)
+                }
+            },
+            containerColor = CardDark,
+            titleContentColor = White,
+            textContentColor = LightGray
+        )
+    }
+
+    if (showUpdateSuccess != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissUpdateSuccess() },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Success",
+                        tint = Color(0xFF10B981), // Vibrant Green
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "App Updated Successfully!",
+                        fontWeight = FontWeight.ExtraBold,
+                        color = White,
+                        fontSize = 18.sp
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .background(Color(0xFF10B981).copy(alpha = 0.15f), CircleShape)
+                            .border(2.dp, Color(0xFF10B981), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "Check",
+                            tint = Color(0xFF10B981),
+                            modifier = Modifier.size(42.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "VERSION ${showUpdateSuccess} ACTIVE",
+                        color = Color(0xFFFFF000), // Neon Yellow
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        letterSpacing = 2.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "Mubarak Ho! Aap ki HB Sports App kamyabi se naye version (v${showUpdateSuccess}) par update ho chuki hai. Ab aap naye features aur behtar live streaming speed ke sath matches enjoy kar sakte hain!",
+                        color = LightGray,
+                        fontSize = 14.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        lineHeight = 20.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Thanks for choosing Babar Ali Official! ♥",
+                        color = Color(0xFFEF4444),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.dismissUpdateSuccess() },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Shukriya! (Continue)", color = White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
             },
             containerColor = CardDark,
@@ -558,6 +710,21 @@ fun DashboardScreen(
                         text = appUpdate?.changeLog ?: "No changelog provided.",
                         color = LightGray,
                         fontSize = 13.sp
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Note (Urdu):",
+                        color = Color(0xFFFFF000), // Neon Yellow
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Update download hote hi installation screen automatic open ho jayegi. Android security ke mutabiq complete install karne ke liye screen par 'Install' par click lazmi karein.",
+                        color = LightGray.copy(alpha = 0.9f),
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp
                     )
                     
                     if (downloadProgress != null || updateStatusMessage != null) {
@@ -2182,6 +2349,207 @@ fun PullToRefreshContainer(
                             .size(22.dp)
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun SplashScreenContent() {
+    val infiniteTransition = rememberInfiniteTransition(label = "SplashGlow")
+    
+    // Pulse scale animation for the logo
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 0.95f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "LogoScale"
+    )
+
+    // Pulse alpha animation for the glow effect
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.8f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "GlowAlpha"
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF060A13), // Deep pitch black-blue
+                        Color(0xFF0D1527), // Deep slate blue
+                        Color(0xFF080F21)  // Rich dark blue
+                    )
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        // Decorative background grid/lines for sportiness
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val width = size.width
+            val height = size.height
+            val paintColor = Color(0xFFEF4444).copy(alpha = 0.03f)
+            
+            // Draw stylized diagonal lines
+            val step = 100f
+            var x = -height
+            while (x < width) {
+                drawLine(
+                    color = paintColor,
+                    start = Offset(x, 0f),
+                    end = Offset(x + height, height),
+                    strokeWidth = 3f
+                )
+                x += step
+            }
+        }
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(24.dp)
+        ) {
+            // Glowing Logo Container
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(140.dp)
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                    }
+            ) {
+                // Outer Glow ring
+                Box(
+                    modifier = Modifier
+                        .size(130.dp)
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFFEF4444).copy(alpha = glowAlpha),
+                                    Color.Transparent
+                                )
+                            ),
+                            shape = CircleShape
+                        )
+                )
+
+                // Inner styled ring
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(100.dp)
+                        .background(Color(0xFF131E3A), shape = CircleShape)
+                        .border(3.dp, Color(0xFFDC2626), CircleShape)
+                        .padding(8.dp)
+                ) {
+                    // Play / TV live icon
+                    Icon(
+                        imageVector = Icons.Filled.PlayArrow,
+                        contentDescription = "Live Stream Logo",
+                        tint = Color(0xFFFFF000), // Neon Yellow/Gold
+                        modifier = Modifier.size(54.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // App title with professional typography styling
+            Text(
+                text = "HB SPORTS",
+                color = Color.White,
+                fontSize = 38.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 4.sp
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Subtitle
+            Text(
+                text = "PREMIUM LIVE STREAMING",
+                color = Color(0xFFEF4444),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 3.sp
+            )
+
+            Spacer(modifier = Modifier.height(48.dp))
+
+            // Small sleek custom linear loading indicator instead of default circular spinner
+            Box(
+                modifier = Modifier
+                    .width(120.dp)
+                    .height(4.dp)
+                    .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(2.dp))
+            ) {
+                val progressAnim by rememberInfiniteTransition(label = "LoadingProgress").animateFloat(
+                    initialValue = 0f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1500, easing = LinearEasing),
+                        repeatMode = RepeatMode.Restart
+                    ),
+                    label = "Progress"
+                )
+                
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(progressAnim)
+                        .background(Color(0xFFDC2626), RoundedCornerShape(2.dp))
+                )
+            }
+        }
+
+        // Developer Attribution Badge at the bottom
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 48.dp)
+        ) {
+            Text(
+                text = "DEVELOPED BY",
+                color = Color.White.copy(alpha = 0.4f),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 2.sp
+            )
+            
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .background(Color(0xFF131E3A).copy(alpha = 0.8f), RoundedCornerShape(12.dp))
+                    .border(1.dp, Color(0xFFDC2626).copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(Color(0xFF10B981), CircleShape) // Green live dot
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Babar Ali",
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                )
             }
         }
     }

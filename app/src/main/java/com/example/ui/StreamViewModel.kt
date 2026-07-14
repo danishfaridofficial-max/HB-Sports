@@ -80,6 +80,13 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
     )
     val spreadsheetId: StateFlow<String> = _spreadsheetId.asStateFlow()
 
+    private val _showUpdateSuccess = MutableStateFlow<String?>(null)
+    val showUpdateSuccess: StateFlow<String?> = _showUpdateSuccess.asStateFlow()
+
+    fun dismissUpdateSuccess() {
+        _showUpdateSuccess.value = null
+    }
+
     sealed interface SyncStatus {
         object Idle : SyncStatus
         object Loading : SyncStatus
@@ -343,18 +350,22 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
 
-        // Auto-sync from Google Sheets on launch
-        viewModelScope.launch {
-            val savedId = _spreadsheetId.value
-            if (savedId.isNotBlank()) {
-                syncFromSpreadsheet(savedId)
-            }
-        }
+        // Rely on manual pull-to-refresh for fetching Google Sheet updates.
+        // This ensures super-fast startup and fetches fresh channels only when explicitly pulled.
 
         initializeUpcomingMatches()
         startLiveMatchSimulation()
         fetchRealCricketMatches()
         checkForUpdates()
+
+        // Check if application was updated to show success dialog
+        val lastSavedVersionCode = sharedPrefs.getInt("last_saved_version_code", -1)
+        val currentVersionCode = BuildConfig.VERSION_CODE
+        if (lastSavedVersionCode != -1 && currentVersionCode > lastSavedVersionCode) {
+            _showUpdateSuccess.value = BuildConfig.VERSION_NAME
+        }
+        // Save current version code in preferences
+        sharedPrefs.edit().putInt("last_saved_version_code", currentVersionCode).apply()
 
         // Start real-time active users count simulation that responds to stream choices
         viewModelScope.launch {
